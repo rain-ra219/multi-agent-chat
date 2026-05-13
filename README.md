@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Multi-Agent Chat / 多模型协作对话平台
 
-## Getting Started
+A visual multi-model AI chat platform. Create multiple AI agents with different roles, let them work in pipelines or discuss together.
 
-First, run the development server:
+一个可视化的多模型 AI 对话平台。创建多个不同角色的 AI 智能体，让它们以流水线或讨论模式协作。
+
+---
+
+## Features / 功能
+
+- [x] Single-model chat (DeepSeek)
+- [x] Conversation history persistence (localStorage)
+- [ ] Multi-model management
+- [ ] Role / system prompt per model
+- [ ] Pipeline workflow (A → B → C)
+- [ ] Discussion mode
+
+---
+
+## Tech Stack / 技术栈
+
+| Layer 层 | Tech 技术 |
+|-----------|-----------|
+| Framework 框架 | Next.js 16 |
+| Frontend 前端 | React 19 + Tailwind CSS 4 |
+| Backend 后端 | Next.js API Routes |
+| Language 语言 | TypeScript |
+
+---
+
+## Getting Started / 本地启动
 
 ```bash
+# 1. Install dependencies / 安装依赖
+npm install
+
+# 2. Set up API keys / 配置 API Key
+#    Copy .env.local and fill in your keys
+#    复制 .env.local 并填入你的 API Key
+#    DEEPSEEK_API_KEY=sk-xxx
+
+# 3. Start dev server / 启动开发服务器
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# 4. Open / 打开浏览器
+#    http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables / 环境变量
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable 变量 | Description 说明 |
+|---------------|------------------|
+| `DEEPSEEK_API_KEY` | DeepSeek API Key |
+| `DEEPSEEK_BASE_URL` | DeepSeek API address 接口地址 |
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure / 项目结构
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├── app/
+│   ├── layout.tsx          # Site shell / 网站外壳
+│   ├── page.tsx            # Chat page / 聊天首页
+│   ├── globals.css         # Global styles / 全局样式
+│   └── api/
+│       └── chat/
+│           └── route.ts    # AI API proxy / AI 接口中转
+├── .env.local              # API keys (gitignored) / API 密钥（不上传 Git）
+└── ...
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## License / 协议
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

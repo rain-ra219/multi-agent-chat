@@ -1,33 +1,50 @@
-"use client"; // 这行告诉 Next.js：这个组件需要在浏览器里运行（有交互逻辑）
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-// 定义一条消息长什么样
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
 
+// localStorage 的 key，就像给数据起个名字好查找
+const STORAGE_KEY = "multi-agent-chat-messages";
+
 export default function Home() {
-  // messages: 聊天记录数组    setMessages: 修改聊天记录的方法
   const [messages, setMessages] = useState<Message[]>([]);
-  // input: 输入框里的文字    setInput: 修改输入框文字的方法
   const [input, setInput] = useState("");
-  // loading: 是否正在等 AI 回复
   const [loading, setLoading] = useState(false);
 
-  async function sendMessage() {
-    if (!input.trim() || loading) return; // 空消息或正在加载时不发送
+  // 页面加载时，从 localStorage 恢复聊天记录
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      setMessages(JSON.parse(saved)); // 字符串 → 数组
+    }
+  }, []); // 空数组 = 只在第一次加载时执行
 
-    // 把用户消息加到聊天记录里
+  // 聊天记录变化时，自动存到 localStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); // 数组 → 字符串
+    }
+  }, [messages]); // messages 每次变化都执行
+
+  function clearHistory() {
+    localStorage.removeItem(STORAGE_KEY);
+    setMessages([]);
+  }
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+
     const userMessage: Message = { role: "user", content: input };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-    setInput(""); // 清空输入框
+    setInput("");
     setLoading(true);
 
     try {
-      // 调用我们自己的后端 API（不是直接调 DeepSeek）
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,13 +68,19 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen max-w-2xl mx-auto">
-      {/* 顶栏 */}
-      <header className="py-4 border-b text-center">
+      <header className="py-4 border-b text-center relative">
         <h1 className="text-lg font-bold">Multi-Agent Chat</h1>
         <p className="text-sm text-zinc-500">当前连接：DeepSeek</p>
+        {messages.length > 0 && (
+          <button
+            onClick={clearHistory}
+            className="absolute right-0 top-1/2 -translate-y-1/2 text-sm text-red-500 hover:underline"
+          >
+            清空记录
+          </button>
+        )}
       </header>
 
-      {/* 聊天消息区域 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <p className="text-center text-zinc-400 mt-20">
@@ -85,7 +108,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* 底部输入栏 */}
       <div className="border-t p-4 flex gap-2">
         <input
           type="text"
