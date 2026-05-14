@@ -39,7 +39,7 @@ const ROLES_STORAGE_KEY = "multi-agent-chat-roles";
 const ROLE_LIBRARY_KEY = "role-library";
 
 export default function Home() {
-  const [mode, setMode] = useState<"chat" | "pipeline">("chat");
+  const [mode, setMode] = useState<"chat" | "pipeline">("pipeline");
   const [messages, setMessages] = useState<Message[]>([]);
   const [modelRoles, setModelRoles] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");

@@ -31,8 +31,7 @@ type NodeData = {
   prompt?: string;
   image?: string;
   size?: string;
-  format?: string;
-  quality?: string;
+  provider?: string;
   apiUrl?: string;
   customHeaders?: string;
   customBody?: string;
@@ -222,8 +221,7 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
           prompt: "",
           image: "",
           size: "1024x1024",
-          format: "",
-          quality: "",
+          provider: "t8star",
           apiUrl: "",
           customHeaders: "",
           customBody: "",
@@ -327,7 +325,10 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
       const nd = node.data as NodeData;
 
       if (node.type === "image") {
-        const imagePrompt = nd.prompt || messages.filter((m) => m.role === "assistant").pop()?.content || "";
+        const imagePrompt = nd.prompt
+          || messages.filter((m) => m.role === "assistant").pop()?.content
+          || inputData.question
+          || "";
         newLog.push(`正在生成图片: ${imagePrompt.slice(0, 40)}...`);
         updateNodeData(node.id, { running: true, elapsedMs: undefined });
 
@@ -339,9 +340,8 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
             model: nd.model || "gpt-image-2",
           };
           if (nd.size) imageBody.size = nd.size;
-          if (nd.format) imageBody.format = nd.format;
-          if (nd.quality) imageBody.quality = nd.quality;
           if (nd.image) imageBody.image = nd.image;
+          if (nd.provider) imageBody.provider = nd.provider;
           if (nd.apiUrl) imageBody.apiUrl = nd.apiUrl;
           if (nd.customHeaders) imageBody.customHeaders = nd.customHeaders;
           if (nd.customBody) imageBody.customBody = nd.customBody;
@@ -605,11 +605,56 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
             {selectedNode.type === "image" && (
               <>
                 <div>
+                  <label className="text-[10px] text-zinc-400 block mb-1">供应商</label>
+                  <select
+                    value={getSelectedData().provider || "t8star"}
+                    onChange={(e) => {
+                      const p = e.target.value;
+                      updateNodeData(selectedNode.id, { provider: p });
+                    }}
+                    className="w-full text-xs border rounded px-2 py-1"
+                  >
+                    <option value="t8star">T8Star（默认）</option>
+                    <option value="custom">自定义...</option>
+                  </select>
+                </div>
+                {getSelectedData().provider === "custom" && (
+                  <div className="space-y-2 p-2 bg-zinc-50 rounded border">
+                    <div>
+                      <label className="text-[10px] text-zinc-400 block mb-1">API 地址</label>
+                      <input
+                        type="text"
+                        value={getSelectedData().apiUrl || ""}
+                        onChange={(e) => updateNodeData(selectedNode.id, { apiUrl: e.target.value })}
+                        className="w-full text-xs border rounded px-2 py-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-zinc-400 block mb-1">Headers（JSON）</label>
+                      <textarea
+                        value={getSelectedData().customHeaders || ""}
+                        onChange={(e) => updateNodeData(selectedNode.id, { customHeaders: e.target.value })}
+                        className="w-full text-xs border rounded px-2 py-1 h-12 resize-none font-mono"
+                        placeholder='{"Authorization": "Bearer sk-xxx"}'
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-zinc-400 block mb-1">Body（JSON，合并到请求体）</label>
+                      <textarea
+                        value={getSelectedData().customBody || ""}
+                        onChange={(e) => updateNodeData(selectedNode.id, { customBody: e.target.value })}
+                        className="w-full text-xs border rounded px-2 py-1 h-12 resize-none font-mono"
+                        placeholder='{"moderation": "low"}'
+                      />
+                    </div>
+                  </div>
+                )}
+                <div>
                   <label className="text-[10px] text-zinc-400 block mb-1">提示词（描述要生成的图片）</label>
                   <textarea
                     value={getSelectedData().prompt || ""}
                     onChange={(e) => updateNodeData(selectedNode.id, { prompt: e.target.value })}
-                    className="w-full text-xs border rounded px-2 py-1 h-20 resize-none"
+                    className="w-full text-xs border rounded px-2 py-1 h-16 resize-none"
                     placeholder="例如：一只戴着墨镜的柴犬，赛博朋克风格..."
                   />
                 </div>
@@ -648,96 +693,22 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] text-zinc-400 block mb-1">尺寸</label>
+                  <label className="text-[10px] text-zinc-400 block mb-1">尺寸比例</label>
                   <select
                     value={getSelectedData().size || "1024x1024"}
                     onChange={(e) => updateNodeData(selectedNode.id, { size: e.target.value })}
                     className="w-full text-xs border rounded px-2 py-1"
                   >
-                    <option value="1024x1024">1024 × 1024</option>
-                    <option value="1536x1024">1536 × 1024</option>
-                    <option value="1024x1536">1024 × 1536</option>
-                    <option value="2048x2048">2048 × 2048</option>
+                    <option value="1024x1024">1:1 正方形</option>
+                    <option value="1536x1024">3:2 横版</option>
+                    <option value="1024x1536">2:3 竖版</option>
+                    <option value="2048x1152">16:9 横版</option>
+                    <option value="1152x2048">9:16 竖版</option>
+                    <option value="3840x2160">16:9 4K</option>
+                    <option value="2160x3840">9:16 4K</option>
+                    <option value="auto">自动</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-[10px] text-zinc-400 block mb-1">模型</label>
-                  <input
-                    type="text"
-                    value={getSelectedData().model || "gpt-image-2"}
-                    onChange={(e) => updateNodeData(selectedNode.id, { model: e.target.value })}
-                    className="w-full text-xs border rounded px-2 py-1"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] text-zinc-400 block mb-1">格式</label>
-                    <select
-                      value={getSelectedData().format || ""}
-                      onChange={(e) => updateNodeData(selectedNode.id, { format: e.target.value })}
-                      className="w-full text-xs border rounded px-2 py-1"
-                    >
-                      <option value="">默认</option>
-                      <option value="png">PNG</option>
-                      <option value="jpeg">JPEG</option>
-                      <option value="webp">WebP</option>
-                    </select>
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] text-zinc-400 block mb-1">画质</label>
-                    <select
-                      value={getSelectedData().quality || ""}
-                      onChange={(e) => updateNodeData(selectedNode.id, { quality: e.target.value })}
-                      className="w-full text-xs border rounded px-2 py-1"
-                    >
-                      <option value="">默认</option>
-                      <option value="low">低</option>
-                      <option value="medium">中</option>
-                      <option value="high">高</option>
-                    </select>
-                  </div>
-                </div>
-                <details className="text-xs">
-                  <summary className="text-[10px] text-zinc-400 cursor-pointer hover:text-zinc-600">
-                    高级设置（URL / Headers / Body）
-                  </summary>
-                  <div className="mt-2 space-y-2">
-                    <div>
-                      <label className="text-[10px] text-zinc-400 block mb-1">
-                        API 地址（留空用默认 yunwu）
-                      </label>
-                      <input
-                        type="text"
-                        value={getSelectedData().apiUrl || ""}
-                        onChange={(e) => updateNodeData(selectedNode.id, { apiUrl: e.target.value })}
-                        className="w-full text-xs border rounded px-2 py-1"
-                        placeholder="https://yunwu.ai/v1/images/generations"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-zinc-400 block mb-1">
-                        Custom Headers（JSON 格式）
-                      </label>
-                      <textarea
-                        value={getSelectedData().customHeaders || ""}
-                        onChange={(e) => updateNodeData(selectedNode.id, { customHeaders: e.target.value })}
-                        className="w-full text-xs border rounded px-2 py-1 h-12 resize-none font-mono"
-                        placeholder='{"X-Custom": "value"}'
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-zinc-400 block mb-1">
-                        Custom Body（JSON，合并到请求体）
-                      </label>
-                      <textarea
-                        value={getSelectedData().customBody || ""}
-                        onChange={(e) => updateNodeData(selectedNode.id, { customBody: e.target.value })}
-                        className="w-full text-xs border rounded px-2 py-1 h-12 resize-none font-mono"
-                        placeholder='{"moderation": "low"}'
-                      />
-                    </div>
-                  </div>
-                </details>
                 {getSelectedData().imageData && (
                   <div>
                     <label className="text-[10px] text-zinc-400 block mb-1">生成结果</label>
