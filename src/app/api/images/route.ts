@@ -1,7 +1,7 @@
-const PROVIDERS: Record<string, { url: string; key: string }> = {
+const PROVIDERS: Record<string, { url: string; key: string | undefined }> = {
   t8star: {
-    url: "https://ai.t8star.org/v1/images/generations",
-    key: "sk-nMUNMT3G2b0pc52hCZqEwKgkvsQX40OSZ7bzVRrO6RpXuHOS",
+    url: (process.env.T8STAR_BASE_URL || "https://ai.t8star.org") + "/v1/images/generations",
+    key: process.env.T8STAR_API_KEY,
   },
 };
 
@@ -15,6 +15,9 @@ export async function POST(request: Request) {
 
   if (provider && PROVIDERS[provider]) {
     const p = PROVIDERS[provider];
+    if (!p.key) {
+      return Response.json({ error: `供应商 ${provider} 的 API Key 没配置，请检查 .env.local` }, { status: 500 });
+    }
     url = isEdit ? p.url.replace("/generations", "/edits") : p.url;
     authHeader = "Bearer " + p.key;
   } else if (apiUrl) {
