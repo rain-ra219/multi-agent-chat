@@ -1,28 +1,52 @@
+const MODEL_CONFIG: Record<string, { apiKey: string | undefined; baseUrl: string | undefined; model: string }> = {
+  deepseek: {
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    baseUrl: process.env.DEEPSEEK_BASE_URL,
+    model: "deepseek-chat",
+  },
+  "gpt-5.5": {
+    apiKey: process.env.YUNWU_API_KEY,
+    baseUrl: process.env.YUNWU_BASE_URL,
+    model: "gpt-5.5",
+  },
+};
+
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, model, systemPrompt } = await request.json();
 
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  const baseUrl = process.env.DEEPSEEK_BASE_URL;
+  const selectedModel = model || "deepseek";
+  const config = MODEL_CONFIG[selectedModel];
 
-  if (!apiKey) {
+  if (!config) {
     return Response.json(
-      { error: "API Key 没配置，请检查 .env.local" },
+      { error: `不支持的模型：${selectedModel}` },
+      { status: 400 }
+    );
+  }
+
+  if (!config.apiKey || !config.baseUrl) {
+    return Response.json(
+      { error: `模型 ${selectedModel} 的 API Key 没配置，请检查 .env` },
       { status: 500 }
     );
   }
 
-  const url = String(baseUrl).trim() + "/v1/chat/completions";
+  const url = config.baseUrl.trim() + "/v1/chat/completions";
+
+  const apiMessages = systemPrompt
+    ? [{ role: "system", content: systemPrompt }, ...messages]
+    : messages;
 
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + String(apiKey).trim(),
+        Authorization: "Bearer " + config.apiKey.trim(),
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
-        messages,
+        model: config.model,
+        messages: apiMessages,
       }),
     });
 
