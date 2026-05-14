@@ -12,7 +12,7 @@ const MODEL_CONFIG: Record<string, { apiKey: string | undefined; baseUrl: string
 };
 
 export async function POST(request: Request) {
-  const { messages, model, systemPrompt } = await request.json();
+  const { messages, model, systemPrompt, stream } = await request.json();
 
   const selectedModel = model || "deepseek";
   const config = MODEL_CONFIG[selectedModel];
@@ -37,6 +37,12 @@ export async function POST(request: Request) {
     ? [{ role: "system", content: systemPrompt }, ...messages]
     : messages;
 
+  const body = {
+    model: config.model,
+    messages: apiMessages,
+    stream: stream ?? false,
+  };
+
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -44,21 +50,28 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         Authorization: "Bearer " + config.apiKey.trim(),
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages: apiMessages,
-      }),
+      body: JSON.stringify(body),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
       return Response.json(
         { error: data.error?.message || "调用 AI 失败" },
         { status: response.status }
       );
     }
 
+    if (stream && response.body) {
+      return new Response(response.body, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    const data = await response.json();
     return Response.json(data);
   } catch (err) {
     return Response.json(
