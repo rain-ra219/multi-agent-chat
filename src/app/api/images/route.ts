@@ -1,19 +1,47 @@
 export async function POST(request: Request) {
-  const { prompt, model, size, format, quality, image } = await request.json();
+  const { prompt, model, size, format, quality, image, apiUrl, customHeaders, customBody } = await request.json();
 
   const apiKey = process.env.YUNWU_API_KEY;
   const baseUrl = process.env.YUNWU_BASE_URL;
 
-  if (!apiKey || !baseUrl) {
+  if (!apiKey && !customHeaders) {
     return Response.json(
-      { error: "图片 API 未配置" },
+      { error: "API 未配置：缺少 YUNWU_API_KEY 或自定义 Headers" },
       { status: 500 }
     );
   }
 
   const isEdit = image && image.length > 0;
-  const endpoint = isEdit ? "/v1/images/edits" : "/v1/images/generations";
-  const url = baseUrl.trim().replace(/\/+$/, "") + endpoint;
+
+  let url: string;
+  if (apiUrl) {
+    url = apiUrl;
+  } else {
+    if (!baseUrl) {
+      return Response.json(
+        { error: "API 未配置：请设置 YUNWU_BASE_URL 或填写自定义 API 地址" },
+        { status: 500 }
+      );
+    }
+    const endpoint = isEdit ? "/v1/images/edits" : "/v1/images/generations";
+    url = baseUrl.trim().replace(/\/+$/, "") + endpoint;
+  }
+
+  // 解析自定义 Headers
+  let extraHeaders: Record<string, string> = {};
+  if (customHeaders) {
+    try { extraHeaders = JSON.parse(customHeaders); } catch {
+      return Response.json({ error: "自定义 Headers JSON 格式错误" }, { status: 400 });
+    }
+  }
+
+  // 解析自定义 Body
+  let extraBody: Record<string, unknown> = {};
+  if (customBody) {
+    try { extraBody = JSON.parse(customBody); } catch {
+      return Response.json({ error: "自定义 Body JSON 格式错误" }, { status: 400 });
+    }
+  }
 
   try {
     if (isEdit) {
@@ -27,25 +55,29 @@ export async function POST(request: Request) {
       if (model) formData.append("model", model);
       if (size) formData.append("size", size);
       if (quality) formData.append("quality", quality);
-      formData.append("n", "1");
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          Authorization: "Bearer " + apiKey.trim(),
-        },
-        body: formData,
-      });
+      // 合并自定义 body（multipart 下作为额外字段）
+      for (const [key, val] of Object.entries(extraBody)) {
+        formData.append(key, String(val));
+      }
+
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        ...extraHeaders,
+      };
+      // 默认 Auth 兜底
+      if (!("authorization" in headers || "Authorization" in extraHeaders)) {
+        headers["Authorization"] = "Bearer " + apiKey?.trim();
+      }
+
+      const response = await fetch(url, { method: "POST", headers, body: formData });
 
       const text = await response.text();
-
       if (!response.ok) {
         let errMsg = `HTTP ${response.status}`;
         try { errMsg = JSON.parse(text).error?.message || text.slice(0, 200); } catch { /* raw */ }
         return Response.json({ error: errMsg }, { status: response.status });
       }
-
       return Response.json(JSON.parse(text));
     }
 
@@ -54,24 +86,25 @@ export async function POST(request: Request) {
       model: model || "gpt-image-2",
       prompt,
       n: 1,
+      ...extraBody, // 自定义 body 覆盖默认值
     };
 
     if (size) body.size = size;
     if (format) body.format = format;
     if (quality) body.quality = quality;
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: "Bearer " + apiKey.trim(),
-      },
-      body: JSON.stringify(body),
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...extraHeaders,
+    };
+    if (!("authorization" in headers || "Authorization" in extraHeaders)) {
+      headers["Authorization"] = "Bearer " + apiKey?.trim();
+    }
+
+    const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
 
     const text = await response.text();
-
     if (!response.ok) {
       let errMsg = `HTTP ${response.status}`;
       try { errMsg = JSON.parse(text).error?.message || text.slice(0, 200); } catch { /* raw */ }

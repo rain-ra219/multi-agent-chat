@@ -21,6 +21,12 @@ type ModelConfig = {
   role: string;
 };
 
+type SavedRole = {
+  id: string;
+  name: string;
+  prompt: string;
+};
+
 const MODELS: ModelConfig[] = [
   { key: "deepseek", label: "DeepSeek", role: "你是一个理性、严谨的技术专家。" },
   { key: "gpt-5.5", label: "GPT-5.5", role: "你是一个务实的产品经理，关注可行性和用户体验。" },
@@ -30,6 +36,7 @@ const CHAT_MODELS = MODELS.map((m) => m.key);
 
 const STORAGE_KEY = "multi-agent-chat-messages";
 const ROLES_STORAGE_KEY = "multi-agent-chat-roles";
+const ROLE_LIBRARY_KEY = "role-library";
 
 export default function Home() {
   const [mode, setMode] = useState<"chat" | "pipeline">("chat");
@@ -39,6 +46,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [loadingModel, setLoadingModel] = useState("");
   const [showRoles, setShowRoles] = useState(false);
+  const [showRoleLibrary, setShowRoleLibrary] = useState(false);
+
+  // 角色库
+  const [savedRoles, setSavedRoles] = useState<SavedRole[]>([]);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRolePrompt, setNewRolePrompt] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -52,6 +65,9 @@ export default function Home() {
       MODELS.forEach((m) => { defaults[m.key] = m.role; });
       setModelRoles(defaults);
     }
+
+    const savedLibrary = localStorage.getItem(ROLE_LIBRARY_KEY);
+    if (savedLibrary) setSavedRoles(JSON.parse(savedLibrary));
   }, []);
 
   useEffect(() => {
@@ -66,9 +82,33 @@ export default function Home() {
     }
   }, [modelRoles]);
 
+  useEffect(() => {
+    localStorage.setItem(ROLE_LIBRARY_KEY, JSON.stringify(savedRoles));
+  }, [savedRoles]);
+
   function clearHistory() {
     localStorage.removeItem(STORAGE_KEY);
     setMessages([]);
+  }
+
+  function addSavedRole() {
+    if (!newRoleName.trim() || !newRolePrompt.trim()) return;
+    const role: SavedRole = {
+      id: crypto.randomUUID(),
+      name: newRoleName.trim(),
+      prompt: newRolePrompt.trim(),
+    };
+    setSavedRoles([...savedRoles, role]);
+    setNewRoleName("");
+    setNewRolePrompt("");
+  }
+
+  function deleteSavedRole(id: string) {
+    setSavedRoles(savedRoles.filter((r) => r.id !== id));
+  }
+
+  function applyRole(modelKey: string, rolePrompt: string) {
+    setModelRoles({ ...modelRoles, [modelKey]: rolePrompt });
   }
 
   async function callModel(modelKey: string, messages: Message[]) {
@@ -133,7 +173,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="py-3 px-4 border-b flex items-center gap-6 bg-white">
+      <header className="py-3 px-4 border-b flex items-center gap-4 bg-white">
         <div className="flex gap-1 bg-zinc-100 rounded-lg p-0.5">
           <button
             onClick={() => setMode("chat")}
@@ -157,10 +197,17 @@ export default function Home() {
           </button>
         </div>
 
+        <button
+          onClick={() => { setShowRoleLibrary(!showRoleLibrary); setShowRoles(false); }}
+          className={`text-sm hover:underline ${showRoleLibrary ? "text-blue-600" : "text-blue-500"}`}
+        >
+          角色库{savedRoles.length > 0 ? ` (${savedRoles.length})` : ""}
+        </button>
+
         {mode === "chat" && (
           <>
             <button
-              onClick={() => setShowRoles(!showRoles)}
+              onClick={() => { setShowRoles(!showRoles); setShowRoleLibrary(false); }}
               className="text-sm text-blue-500 hover:underline"
             >
               {showRoles ? "收起角色设置" : "角色设置"}
@@ -178,6 +225,63 @@ export default function Home() {
         )}
       </header>
 
+      {/* 角色库面板 */}
+      {showRoleLibrary && (
+        <div className="border-b px-4 py-3 bg-zinc-50 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-zinc-600">角色库</span>
+            <span className="text-xs text-zinc-400">管理预制的角色提示词，聊天和流水线都能使用</span>
+          </div>
+
+          {/* 新建角色 */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newRoleName}
+              onChange={(e) => setNewRoleName(e.target.value)}
+              placeholder="角色名称"
+              className="text-sm border rounded px-2 py-1 w-32"
+            />
+            <input
+              type="text"
+              value={newRolePrompt}
+              onChange={(e) => setNewRolePrompt(e.target.value)}
+              placeholder="角色提示词..."
+              className="flex-1 text-sm border rounded px-2 py-1"
+            />
+            <button
+              onClick={addSavedRole}
+              disabled={!newRoleName.trim() || !newRolePrompt.trim()}
+              className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 disabled:opacity-50"
+            >
+              保存
+            </button>
+          </div>
+
+          {/* 已保存的角色列表 */}
+          {savedRoles.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {savedRoles.map((role) => (
+                <div key={role.id} className="flex items-start gap-2 bg-white rounded border p-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-zinc-700 truncate">{role.name}</div>
+                    <div className="text-xs text-zinc-400 truncate">{role.prompt.slice(0, 60)}</div>
+                  </div>
+                  <button
+                    onClick={() => deleteSavedRole(role.id)}
+                    className="text-xs text-red-400 hover:text-red-600 flex-shrink-0 mt-0.5"
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400">还没有保存的角色，新建一个吧</p>
+          )}
+        </div>
+      )}
+
       {mode === "chat" ? (
         <>
           {showRoles && (
@@ -192,6 +296,20 @@ export default function Home() {
                     className="flex-1 text-sm border rounded px-2 py-1"
                     placeholder={`设定 ${m.label} 的角色...`}
                   />
+                  {savedRoles.length > 0 && (
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) applyRole(m.key, e.target.value);
+                        e.target.value = "";
+                      }}
+                      className="text-xs border rounded px-1 py-1 w-24"
+                    >
+                      <option value="">选择预制角色</option>
+                      {savedRoles.map((r) => (
+                        <option key={r.id} value={r.prompt}>{r.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               ))}
             </div>
@@ -277,7 +395,7 @@ export default function Home() {
           </div>
         </>
       ) : (
-        <PipelineCanvas />
+        <PipelineCanvas savedRoles={savedRoles} />
       )}
     </div>
   );
