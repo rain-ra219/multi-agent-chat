@@ -3,10 +3,16 @@ const PROVIDERS: Record<string, { url: string; key: string | undefined }> = {
     url: (process.env.T8STAR_BASE_URL || "https://ai.t8star.org") + "/v1/images/generations",
     key: process.env.T8STAR_API_KEY,
   },
+  yunwu: {
+    url: "https://yunwu.ai/v1/images/generations",
+    key: "sk-s9QjOkeiQXVyMBhefFkvswJkdCOD6jUmY5ECqd9FpCOMGbrr",
+  },
 };
 
 export async function POST(request: Request) {
   const { prompt, model, size, quality, image, provider, apiUrl, customHeaders, customBody } = await request.json();
+
+  console.log("[images] received", { provider, model, promptLen: prompt?.length, size, hasImage: !!image, apiUrl: apiUrl?.slice(0, 40) });
 
   const isEdit = image && image.length > 0;
 
@@ -20,6 +26,7 @@ export async function POST(request: Request) {
     }
     url = isEdit ? p.url.replace("/generations", "/edits") : p.url;
     authHeader = "Bearer " + p.key;
+    console.log("[images] using provider", { provider, url, authPrefix: authHeader.slice(0, 25) + "..." });
   } else if (apiUrl) {
     url = apiUrl;
     authHeader = "";
@@ -104,8 +111,11 @@ export async function POST(request: Request) {
       headers["Authorization"] = authHeader;
     }
 
+    console.log("[images] request", { url, auth: headers["Authorization"]?.slice(0, 30) + "...", bodyKeys: Object.keys(body) });
+
     const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     const text = await response.text();
+    console.log("[images] response", { status: response.status, body: text.slice(0, 300) });
     if (!response.ok) {
       let errMsg = `HTTP ${response.status}`;
       try { errMsg = JSON.parse(text).error?.message || text; } catch { errMsg = text.slice(0, 500); }

@@ -163,6 +163,26 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [panelWidth, setPanelWidth] = useState(320);
+  const resizingRef = useRef(false);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!resizingRef.current) return;
+      setPanelWidth((w) => Math.min(700, Math.max(240, w - e.movementX)));
+    }
+    function onMouseUp() {
+      resizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -325,10 +345,13 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
       const nd = node.data as NodeData;
 
       if (node.type === "image") {
-        const imagePrompt = nd.prompt
+        let imagePrompt = nd.prompt
           || messages.filter((m) => m.role === "assistant").pop()?.content
           || inputData.question
           || "";
+        if (imagePrompt.length > 1000) {
+          imagePrompt = imagePrompt.slice(0, 997) + "...";
+        }
         newLog.push(`正在生成图片: ${imagePrompt.slice(0, 40)}...`);
         updateNodeData(node.id, { running: true, elapsedMs: undefined });
 
@@ -341,7 +364,7 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
           };
           if (nd.size) imageBody.size = nd.size;
           if (nd.image) imageBody.image = nd.image;
-          if (nd.provider) imageBody.provider = nd.provider;
+          imageBody.provider = nd.provider || "t8star";
           if (nd.apiUrl) imageBody.apiUrl = nd.apiUrl;
           if (nd.customHeaders) imageBody.customHeaders = nd.customHeaders;
           if (nd.customBody) imageBody.customBody = nd.customBody;
@@ -504,7 +527,19 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
         </ReactFlow>
       </div>
 
-      <div className="w-72 border-l bg-zinc-50 p-4 flex-shrink-0 overflow-y-auto">
+      <div
+        className="w-1 cursor-col-resize bg-zinc-200 hover:bg-blue-400 active:bg-blue-500 flex-shrink-0 transition-colors"
+        onMouseDown={(e) => {
+          resizingRef.current = true;
+          document.body.style.cursor = "col-resize";
+          document.body.style.userSelect = "none";
+          e.preventDefault();
+        }}
+      />
+      <div
+        style={{ width: panelWidth }}
+        className="border-l bg-zinc-50 p-4 flex-shrink-0 overflow-y-auto"
+      >
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-zinc-400 uppercase">节点配置</h3>
           <button
@@ -614,7 +649,8 @@ export default function PipelineCanvas({ savedRoles }: { savedRoles: SavedRole[]
                     }}
                     className="w-full text-xs border rounded px-2 py-1"
                   >
-                    <option value="t8star">T8Star（默认）</option>
+                    <option value="t8star">T8Star</option>
+                    <option value="yunwu">YunWu</option>
                     <option value="custom">自定义...</option>
                   </select>
                 </div>
